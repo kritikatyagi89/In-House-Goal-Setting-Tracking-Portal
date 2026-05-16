@@ -1,1 +1,31 @@
-Developed a full-stack In-House Goal Setting & Tracking Portal to simplify employee performance management and organizational goal alignment. The system supports role-based access for Employees, Managers, and Admin/HR teams, enabling seamless goal creation, approval workflows, quarterly check-ins, progress tracking, and performance visibility. Implemented validation rules for goal weightage, shared departmental goals, audit logs, achievement tracking, and real-time dashboards. The portal also includes reporting features, status monitoring, and structured feedback mechanisms to improve accountability, transparency, and collaboration across teams. Built with a scalable architecture and user-friendly interface to replace manual spreadsheet-based performance tracking systems.
+# In-House Goal Setting & Tracking Portal
+
+A full-stack web application developed to streamline employee performance management and organizational goal alignment. The portal enables Employees, Managers, and Admin/HR teams to efficiently manage the complete lifecycle of goals — from creation and approval to quarterly achievement tracking and performance monitoring.
+
+## 🚀 Key Features
+- Role-based authentication and access control
+- Goal creation, submission, and approval workflow
+- Quarterly check-ins with progress tracking
+- Shared departmental goals functionality
+- Validation rules for goal weightage and limits
+- Real-time dashboards and analytics
+- Audit logs for tracking goal modifications
+- Achievement reports with export functionality
+- Structured manager feedback and review system
+
+## 🛠️ Tech Stack
+- Frontend: React.js / Next.js
+- Backend: Node.js / Express.js
+- Database: PostgreSQL / MongoDB
+- ORM: Prisma
+- Styling: Tailwind CSS
+
+## 🎯 Project Objective
+The project was designed to replace manual spreadsheet-based goal tracking systems with a centralized and scalable digital solution that improves transparency, accountability, collaboration, and performance visibility across organizations.
+
+## 📌 Highlights
+- Implemented end-to-end goal lifecycle management
+- Designed scalable role-based architecture
+- Built user-friendly and responsive UI
+- Improved workflow automation and tracking efficiency
+- Enhanced organizational performance monitoring
