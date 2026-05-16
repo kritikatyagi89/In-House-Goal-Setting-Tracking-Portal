@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// No enums for SQLite — we use String with comments
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  password     String
+  role         String   // "EMPLOYEE" | "MANAGER" | "ADMIN"
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  managerId    String?
+  manager      User?    @relation("Reports", fields: [managerId], references: [id])
+  reports      User[]   @relation("Reports")
+
+  goals        Goal[]              @relation("OwnerGoals")
+  sharedGoals  SharedGoalRecipient[]
+  checkIns     CheckIn[]
+  approvals    Goal[]              @relation("ManagerApprovals")
+  auditLogs    AuditLog[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Department {
+  id    String @id @default(cuid())
+  name  String @unique
+  users User[]
+}
+
+model Goal {
+  id           String  @id @default(cuid())
+
+  ownerId      String
+  owner        User    @relation("OwnerGoals", fields: [ownerId], references: [id])
+
+  managerId    String?
+  manager      User?   @relation("ManagerApprovals", fields: [managerId], references: [id])
+
+  thrustArea   String
+  title        String
+  description  String?
+
+  uomType      String  // "MIN_NUMERIC" | "MAX_NUMERIC" | "TIMELINE" | "ZERO_BASED"
+
+  target       Float?
+  targetDate   DateTime?
+
+  weightage    Float
+
+  status       String  @default("DRAFT") // "DRAFT"|"SUBMITTED"|"APPROVED"|"REWORK_REQUESTED"
+
+  isShared     Boolean @default(false)
+  sharedGoalId String?
+
+  checkIns     CheckIn[]
+  recipients   SharedGoalRecipient[]
+  auditLogs    AuditLog[]
+
+  lockedAt     DateTime?
+  cycleYear    Int
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SharedGoalRecipient {
+  id          String @id @default(cuid())
+
+  goalId      String
+  goal        Goal   @relation(fields: [goalId], references: [id])
+
+  recipientId String
+  recipient   User   @relation(fields: [recipientId], references: [id])
+
+  weightage   Float
+
+  @@unique([goalId, recipientId])
+}
+
+model CheckIn {
+  id             String   @id @default(cuid())
+
+  goalId         String
+  goal           Goal     @relation(fields: [goalId], references: [id])
+
+  employeeId     String
+  employee       User     @relation(fields: [employeeId], references: [id])
+
+  period         String   // "Q1" | "Q2" | "Q3" | "Q4_ANNUAL"
+
+  actual         Float?
+  actualDate     DateTime?
+
+  status         String   @default("NOT_STARTED") // "NOT_STARTED"|"ON_TRACK"|"COMPLETED"
+
+  score          Float?
+
+  managerComment String?
+  commentedAt    DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([goalId, period])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id])
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  action    String
+  details   String?
+
+  createdAt DateTime @default(now())
+}

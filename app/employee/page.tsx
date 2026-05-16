@@ -1,14 +1,12 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import EmployeeDashboard from "./EmployeeDashboard";
 
-export default async function Home() {
+export default async function EmployeePage() {
   const session = await getServerSession(authOptions);
-
   if (!session) redirect("/login");
+  if (session.user.role !== "EMPLOYEE") redirect("/");
 
-  const role = session.user.role;
-  if (role === "ADMIN") redirect("/admin");
-  if (role === "MANAGER") redirect("/manager");
-  redirect("/employee");
+  return <EmployeeDashboard user={session.user} />;
 }
