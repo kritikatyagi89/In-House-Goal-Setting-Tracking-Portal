@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# In-House Goal Setting & Tracking Portal
 
-## Getting Started
+A full-stack web application developed to streamline employee performance management and organizational goal alignment. The portal enables Employees, Managers, and Admin/HR teams to efficiently manage the complete lifecycle of goals — from creation and approval to quarterly achievement tracking and performance monitoring.
 
-First, run the development server:
+## 🚀 Key Features
+- Role-based authentication and access control
+- Goal creation, submission, and approval workflow
+- Quarterly check-ins with progress tracking
+- Shared departmental goals functionality
+- Validation rules for goal weightage and limits
+- Real-time dashboards and analytics
+- Audit logs for tracking goal modifications
+- Achievement reports with export functionality
+- Structured manager feedback and review system
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🛠️ Tech Stack
+- Frontend: React.js / Next.js
+- Backend: Node.js / Express.js
+- Database: PostgreSQL / MongoDB
+- ORM: Prisma
+- Styling: Tailwind CSS
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🎯 Project Objective
+The project was designed to replace manual spreadsheet-based goal tracking systems with a centralized and scalable digital solution that improves transparency, accountability, collaboration, and performance visibility across organizations.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📌 Highlights
+- Implemented end-to-end goal lifecycle management
+- Designed scalable role-based architecture
+- Built user-friendly and responsive UI
+- Improved workflow automation and tracking efficiency
+- Enhanced organizational performance monitoring
