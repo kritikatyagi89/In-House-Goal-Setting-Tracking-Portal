@@ -14,11 +14,12 @@ A full-stack web application developed to streamline employee performance manage
 - Structured manager feedback and review system
 
 ## 🛠️ Tech Stack
-- Frontend: React.js / Next.js
-- Backend: Node.js / Express.js
-- Database: PostgreSQL / MongoDB
+- Frontend: Next.js / React
+- Backend: Next.js API routes (Node.js)
+- Database: SQLite (via @libsql/client, accessed through the Prisma adapter)
 - ORM: Prisma
 - Styling: Tailwind CSS
+- Authentication: NextAuth (Credentials provider)
 
 ## 🎯 Project Objective
 The project was designed to replace manual spreadsheet-based goal tracking systems with a centralized and scalable digital solution that improves transparency, accountability, collaboration, and performance visibility across organizations.

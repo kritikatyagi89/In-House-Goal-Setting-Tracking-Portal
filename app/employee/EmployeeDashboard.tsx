@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { formatPeriodLabel, type CyclePeriod } from "@/lib/cycle";
 
 const COLORS = ["#7c6aff","#22c55e","#f59e0b","#3b82f6","#ef4444","#ec4899","#14b8a6","#f97316"];
 const THRUST_AREAS = ["Sales & Revenue","Customer Success","Operations","People & Culture","Technology","Finance","Safety & Compliance","Strategy"];
@@ -26,6 +27,10 @@ function computeScore(uomType: string, target: number, actual: number) {
   return 0;
 }
 
+function goalWeight(g: any) {
+  return g.sharedRecipientView ? g.recipientWeightage : g.weightage;
+}
+
 export default function EmployeeDashboard({ user }: { user: any }) {
   const router = useRouter();
   const [activeKey, setActiveKey] = useState("dashboard");
@@ -34,6 +39,7 @@ export default function EmployeeDashboard({ user }: { user: any }) {
   const [showModal, setShowModal] = useState(false);
   const [editGoal, setEditGoal] = useState<any>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [cycle, setCycle] = useState<{ currentPeriod: CyclePeriod | null; goalSettingOpen: boolean } | null>(null);
   const [form, setForm] = useState({
     thrustArea: "", title: "", description: "",
     uomType: "", target: "", weightage: "",
@@ -41,7 +47,10 @@ export default function EmployeeDashboard({ user }: { user: any }) {
 
   const cycleYear = new Date().getFullYear();
 
-  useEffect(() => { fetchGoals(); }, []);
+  useEffect(() => {
+    fetchGoals();
+    fetch("/api/cycle").then((res) => res.json()).then(setCycle);
+  }, []);
 
   async function fetchGoals() {
     setLoading(true);
@@ -56,10 +65,12 @@ export default function EmployeeDashboard({ user }: { user: any }) {
     setTimeout(() => setToast(null), 3000);
   }
 
-  const totalWeight = goals.reduce((s, g) => s + g.weightage, 0);
-  const canAdd = goals.length < 8 && goals.every(g => g.status === "DRAFT");
-  const isLocked = goals.some(g => g.status === "APPROVED");
-  const canSubmit = totalWeight === 100 && goals.every(g => g.weightage >= 10) && goals.length > 0 && !isLocked;
+  const ownGoals = goals.filter((g) => !g.sharedRecipientView);
+  const ownTotalWeight = ownGoals.reduce((s, g) => s + g.weightage, 0);
+  const totalWeight = goals.reduce((s, g) => s + goalWeight(g), 0);
+  const canAdd = ownGoals.length < 8 && ownGoals.every((g) => g.status === "DRAFT");
+  const isLocked = ownGoals.some((g) => g.status === "APPROVED");
+  const canSubmit = ownTotalWeight === 100 && ownGoals.every((g) => g.weightage >= 10) && ownGoals.length > 0 && !isLocked;
 
   function openAdd() {
     setForm({ thrustArea: "", title: "", description: "", uomType: "", target: "", weightage: "" });
@@ -129,6 +140,7 @@ export default function EmployeeDashboard({ user }: { user: any }) {
         goals={goals} loading={loading} canAdd={canAdd} isLocked={isLocked}
         canSubmit={canSubmit} totalWeight={totalWeight}
         onAdd={openAdd} onEdit={openEdit} onDelete={deleteGoal} onSubmit={submitGoals}
+        onRefresh={fetchGoals} showToast={showToast}
       />
     );
     if (activeKey === "checkin") return <CheckinView goals={goals} onRefresh={fetchGoals} showToast={showToast} />;
@@ -182,7 +194,19 @@ export default function EmployeeDashboard({ user }: { user: any }) {
           <div style={{ fontWeight: 700, fontSize: 18 }}>
             {navItems.find(n => n.key === activeKey)?.label}
           </div>
-          <div style={{ fontSize: 13, color: "#9898b0" }}>{user.email}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {cycle && (
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 8,
+                background: cycle.currentPeriod === "GOAL_SETTING" ? "rgba(124,106,255,0.1)" : cycle.currentPeriod ? "rgba(59,130,246,0.1)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${cycle.currentPeriod === "GOAL_SETTING" ? "rgba(124,106,255,0.2)" : cycle.currentPeriod ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.07)"}`,
+                color: cycle.currentPeriod === "GOAL_SETTING" ? "#a594ff" : cycle.currentPeriod ? "#3b82f6" : "#5a5a72",
+              }}>
+                {formatPeriodLabel(cycle.currentPeriod)}
+              </span>
+            )}
+            <div style={{ fontSize: 13, color: "#9898b0" }}>{user.email}</div>
+          </div>
         </div>
         <div style={S.content}>{renderContent()}</div>
       </main>
@@ -246,7 +270,7 @@ export default function EmployeeDashboard({ user }: { user: any }) {
 }
 
 function DashboardView({ goals, loading }: { goals: any[], loading: boolean }) {
-  const totalWeight = goals.reduce((s, g) => s + g.weightage, 0);
+  const totalWeight = goals.reduce((s, g) => s + goalWeight(g), 0);
   const approved = goals.filter(g => g.status === "APPROVED").length;
   const submitted = goals.filter(g => g.status === "SUBMITTED").length;
 
@@ -297,8 +321,25 @@ function DashboardView({ goals, loading }: { goals: any[], loading: boolean }) {
   );
 }
 
-function GoalsView({ goals, loading, canAdd, isLocked, canSubmit, totalWeight, onAdd, onEdit, onDelete, onSubmit }: any) {
+function GoalsView({ goals, loading, canAdd, isLocked, canSubmit, totalWeight, onAdd, onEdit, onDelete, onSubmit, onRefresh, showToast }: any) {
   const remaining = 100 - totalWeight;
+  const [weightEdits, setWeightEdits] = useState<Record<string, string>>({});
+
+  async function saveRecipientWeightage(goalId: string) {
+    const weightage = Number(weightEdits[goalId]);
+    const res = await fetch(`/api/goals/shared/${goalId}/weightage`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weightage }),
+    });
+    if (res.ok) {
+      showToast("✅ Weightage updated!");
+      onRefresh();
+    } else {
+      const err = await res.json();
+      showToast("❌ " + (err.error || "Failed to update weightage"));
+    }
+  }
 
   return (
     <div>
@@ -334,7 +375,7 @@ function GoalsView({ goals, loading, canAdd, isLocked, canSubmit, totalWeight, o
         </div>
         <div style={{ height: 8, borderRadius: 99, background: "#16161f", overflow: "hidden", display: "flex" }}>
           {goals.map((g: any, i: number) => (
-            <div key={g.id} style={{ height: "100%", width: g.weightage + "%", background: COLORS[i % COLORS.length], transition: "width 0.3s" }} />
+            <div key={g.id} style={{ height: "100%", width: goalWeight(g) + "%", background: COLORS[i % COLORS.length], transition: "width 0.3s" }} />
           ))}
           {remaining > 0 && <div style={{ height: "100%", width: remaining + "%", background: "rgba(255,255,255,0.05)" }} />}
         </div>
@@ -352,22 +393,53 @@ function GoalsView({ goals, loading, canAdd, isLocked, canSubmit, totalWeight, o
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {goals.map((g: any, i: number) => (
-            <div key={g.id} style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "18px 22px", borderLeft: `3px solid ${COLORS[i % COLORS.length]}` }}>
+            <div key={g.id} style={{ background: "#111118", border: g.sharedRecipientView ? "1px solid rgba(239,68,68,0.2)" : "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "18px 22px", borderLeft: `3px solid ${COLORS[i % COLORS.length]}` }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: "#5a5a72", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Goal {i + 1} · {g.thrustArea}</div>
+                  <div style={{ fontSize: 11, color: "#5a5a72", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                    Goal {i + 1} · {g.thrustArea}{g.sharedRecipientView && " · 📡 Shared"}
+                  </div>
                   <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{g.title}</div>
                   {g.description && <div style={{ fontSize: 12, color: "#9898b0", marginBottom: 10 }}>{g.description}</div>}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 11, background: "#1e1e2e", padding: "3px 8px", borderRadius: 6, color: "#9898b0" }}>⚖️ {g.weightage}%</span>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    {g.sharedRecipientView ? (
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, background: "#1e1e2e", padding: "3px 8px", borderRadius: 6, color: "#9898b0" }}>
+                        ⚖️
+                        <input
+                          type="number"
+                          value={weightEdits[g.id] ?? String(g.recipientWeightage)}
+                          onChange={(e) => setWeightEdits({ ...weightEdits, [g.id]: e.target.value })}
+                          style={{ width: 48, padding: "2px 4px", background: "#16161f", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, color: "#e8e8f0", fontSize: 11 }}
+                        />
+                        %
+                        <button onClick={() => saveRecipientWeightage(g.id)} style={{ padding: "2px 8px", borderRadius: 4, background: "#7c6aff", border: "none", color: "white", cursor: "pointer", fontSize: 10, fontWeight: 600 }}>Save</button>
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, background: "#1e1e2e", padding: "3px 8px", borderRadius: 6, color: "#9898b0" }}>⚖️ {g.weightage}%</span>
+                    )}
                     <span style={{ fontSize: 11, background: "#1e1e2e", padding: "3px 8px", borderRadius: 6, color: "#9898b0" }}>📏 {g.uomType.replace("_", " ")}</span>
-                    <span style={{ fontSize: 11, background: "#1e1e2e", padding: "3px 8px", borderRadius: 6, color: "#9898b0" }}>🎯 {g.target || g.targetDate}</span>
+                    <span style={{ fontSize: 11, background: "#1e1e2e", padding: "3px 8px", borderRadius: 6, color: "#9898b0" }}>🎯 {g.target || (g.targetDate ? new Date(g.targetDate).toLocaleDateString() : "—")}</span>
                     <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: g.status === "APPROVED" ? "rgba(34,197,94,0.1)" : g.status === "SUBMITTED" ? "rgba(245,158,11,0.1)" : "rgba(124,106,255,0.1)", color: g.status === "APPROVED" ? "#22c55e" : g.status === "SUBMITTED" ? "#f59e0b" : "#a594ff" }}>
                       {g.status === "APPROVED" ? "✓ Approved" : g.status === "SUBMITTED" ? "⏳ Submitted" : g.status === "REWORK_REQUESTED" ? "↩ Rework" : "○ Draft"}
                     </span>
                   </div>
+                  {g.sharedRecipientView && g.checkIns?.length > 0 && (
+                    <div style={{ marginTop: 12, padding: "10px 12px", background: "#16161f", borderRadius: 8 }}>
+                      <div style={{ fontSize: 10, color: "#5a5a72", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Synced Check-ins (read-only)</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {g.checkIns.map((c: any) => (
+                          <div key={c.id} style={{ display: "flex", gap: 12, fontSize: 11, color: "#9898b0" }}>
+                            <span style={{ fontWeight: 600, color: "#e8e8f0", minWidth: 72 }}>{c.period}</span>
+                            <span>Actual: {c.actual ?? (c.actualDate ? new Date(c.actualDate).toLocaleDateString() : "—")}</span>
+                            <span>Status: {c.status}</span>
+                            {c.score != null && <span>Score: {Math.round(c.score)}%</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {!isLocked && g.status === "DRAFT" && (
+                {!g.sharedRecipientView && !isLocked && g.status === "DRAFT" && (
                   <div style={{ display: "flex", gap: 8, marginLeft: 16 }}>
                     <button onClick={() => onEdit(g)} style={{ padding: "6px 12px", borderRadius: 8, background: "#1e1e2e", border: "1px solid rgba(255,255,255,0.12)", color: "#e8e8f0", cursor: "pointer", fontSize: 12 }}>Edit</button>
                     <button onClick={() => onDelete(g.id)} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", cursor: "pointer", fontSize: 12 }}>Delete</button>
@@ -385,7 +457,8 @@ function GoalsView({ goals, loading, canAdd, isLocked, canSubmit, totalWeight, o
 function CheckinView({ goals, onRefresh, showToast }: any) {
   const [actuals, setActuals] = useState<any>({});
   const [statuses, setStatuses] = useState<any>({});
-  const approvedGoals = goals.filter((g: any) => g.status === "APPROVED");
+  const approvedGoals = goals.filter((g: any) => g.status === "APPROVED" && !g.sharedRecipientView);
+  const sharedApprovedGoals = goals.filter((g: any) => g.status === "APPROVED" && g.sharedRecipientView);
 
   async function saveCheckin(goalId: string) {
     const res = await fetch("/api/checkins", {
@@ -401,7 +474,7 @@ function CheckinView({ goals, onRefresh, showToast }: any) {
     else showToast("❌ Failed to save check-in");
   }
 
-  if (approvedGoals.length === 0) {
+  if (approvedGoals.length === 0 && sharedApprovedGoals.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: 60 }}>
         <div style={{ fontSize: 48, opacity: 0.3, marginBottom: 12 }}>✏️</div>
@@ -415,6 +488,27 @@ function CheckinView({ goals, onRefresh, showToast }: any) {
     <div>
       <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Q2 Check-in</div>
       <div style={{ fontSize: 13, color: "#9898b0", marginBottom: 24 }}>Log your actual achievement for each goal</div>
+      {sharedApprovedGoals.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#ef4444", marginBottom: 12 }}>📡 Shared Goals — synced from primary owner (read-only)</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {sharedApprovedGoals.map((g: any) => (
+              <div key={g.id} style={{ background: "#111118", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 12, padding: "16px 20px" }}>
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{g.title}</div>
+                <div style={{ fontSize: 12, color: "#9898b0", marginBottom: 10 }}>{g.thrustArea} · 🎯 {g.target || (g.targetDate ? new Date(g.targetDate).toLocaleDateString() : "—")}</div>
+                {g.checkIns?.length ? g.checkIns.map((c: any) => (
+                  <div key={c.id} style={{ display: "flex", gap: 12, fontSize: 12, color: "#9898b0", marginTop: 6 }}>
+                    <span style={{ fontWeight: 600, color: "#e8e8f0", minWidth: 72 }}>{c.period}</span>
+                    <span>Actual: {c.actual ?? (c.actualDate ? new Date(c.actualDate).toLocaleDateString() : "—")}</span>
+                    <span>Status: {c.status}</span>
+                    {c.score != null && <span>Score: {Math.round(c.score)}%</span>}
+                  </div>
+                )) : <div style={{ fontSize: 12, color: "#5a5a72" }}>No check-ins yet</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {approvedGoals.map((g: any) => {
           const actual = actuals[g.id] ?? "";

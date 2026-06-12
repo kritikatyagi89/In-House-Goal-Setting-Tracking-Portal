@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
+import { formatPeriodLabel, type CyclePeriod } from "@/lib/cycle";
 
 const COLORS = ["#7c6aff","#22c55e","#f59e0b","#3b82f6","#ef4444","#ec4899","#14b8a6","#f97316"];
 
@@ -10,12 +11,16 @@ export default function ManagerDashboard({ user }: { user: any }) {
   const [teamGoals, setTeamGoals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [cycle, setCycle] = useState<{ currentPeriod: CyclePeriod | null; goalSettingOpen: boolean } | null>(null);
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
   const [comments, setComments] = useState<any>({});
   const [editTargets, setEditTargets] = useState<any>({});
   const [showEditModal, setShowEditModal] = useState<string | null>(null);
 
-  useEffect(() => { fetchTeamGoals(); }, []);
+  useEffect(() => {
+    fetchTeamGoals();
+    fetch("/api/cycle").then((res) => res.json()).then(setCycle);
+  }, []);
 
   async function fetchTeamGoals() {
     setLoading(true);
@@ -146,7 +151,19 @@ export default function ManagerDashboard({ user }: { user: any }) {
       <main style={{ marginLeft: 240, flex: 1, display: "flex", flexDirection: "column" }}>
         <div style={{ height: 60, borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", background: "#0a0a0f", position: "sticky", top: 0, zIndex: 50 }}>
           <div style={{ fontWeight: 700, fontSize: 18 }}>{navItems.find(n => n.key === activeKey)?.label}</div>
-          <div style={{ fontSize: 13, color: "#9898b0" }}>{user.email}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {cycle && (
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 8,
+                background: cycle.currentPeriod === "GOAL_SETTING" ? "rgba(124,106,255,0.1)" : cycle.currentPeriod ? "rgba(59,130,246,0.1)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${cycle.currentPeriod === "GOAL_SETTING" ? "rgba(124,106,255,0.2)" : cycle.currentPeriod ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.07)"}`,
+                color: cycle.currentPeriod === "GOAL_SETTING" ? "#a594ff" : cycle.currentPeriod ? "#3b82f6" : "#5a5a72",
+              }}>
+                {formatPeriodLabel(cycle.currentPeriod)}
+              </span>
+            )}
+            <div style={{ fontSize: 13, color: "#9898b0" }}>{user.email}</div>
+          </div>
         </div>
 
         <div style={{ flex: 1, padding: 28, overflowY: "auto" }}>

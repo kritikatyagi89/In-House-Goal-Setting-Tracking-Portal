@@ -56,7 +56,7 @@ export default function AdminDashboard({ user }: { user: any }) {
     const res = await fetch("/api/admin/shared-goals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...sharedForm, cycleYear: new Date().getFullYear() }),
+      body: JSON.stringify({ ...sharedForm, cycleYear: new Date().getFullYear(), primaryOwnerId: sharedForm.recipientIds[0] }),
     });
     if (res.ok) {
       showToast("🚀 Shared goal pushed to employees!");
@@ -152,7 +152,7 @@ export default function AdminDashboard({ user }: { user: any }) {
         <div style={{ flex: 1, padding: 28, overflowY: "auto" }}>
           {activeKey === "dashboard" && <DashboardView stats={stats} loading={loading} allGoals={allGoals} onNavigate={setActiveKey} />}
           {activeKey === "users" && <UsersView users={allUsers} loading={loading} />}
-          {activeKey === "goals" && <GoalsView goals={allGoals} loading={loading} />}
+          {activeKey === "goals" && <GoalsView goals={allGoals} loading={loading} onRefresh={fetchAll} showToast={showToast} />}
           {activeKey === "shared" && <SharedView goals={allGoals.filter(g => g.isShared)} onPush={() => setShowSharedModal(true)} loading={loading} />}
           {activeKey === "audit" && <AuditView logs={auditLogs} loading={loading} />}
           {activeKey === "reports" && <ReportsView goals={allGoals} users={allUsers} loading={loading} onExport={exportReport} />}
@@ -332,9 +332,20 @@ function UsersView({ users, loading }: any) {
   );
 }
 
-function GoalsView({ goals, loading }: any) {
+function GoalsView({ goals, loading, onRefresh, showToast }: any) {
   const [filter, setFilter] = useState("ALL");
   const filtered = filter === "ALL" ? goals : goals.filter((g: any) => g.status === filter);
+
+  async function unlockGoal(id: string) {
+    const res = await fetch(`/api/admin/goals/${id}/unlock`, { method: "POST" });
+    if (res.ok) {
+      showToast("🔓 Goal unlocked");
+      onRefresh();
+    } else {
+      const e = await res.json();
+      showToast("❌ " + e.error);
+    }
+  }
 
   return (
     <div>
@@ -359,9 +370,16 @@ function GoalsView({ goals, loading }: any) {
                     {g.isShared && <span style={{ fontSize: 11, background: "rgba(239,68,68,0.1)", padding: "3px 8px", borderRadius: 6, color: "#ef4444" }}>📡 Shared</span>}
                   </div>
                 </div>
-                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, background: g.status === "APPROVED" ? "rgba(34,197,94,0.1)" : g.status === "SUBMITTED" ? "rgba(245,158,11,0.1)" : g.status === "REWORK_REQUESTED" ? "rgba(239,68,68,0.1)" : "rgba(124,106,255,0.1)", color: g.status === "APPROVED" ? "#22c55e" : g.status === "SUBMITTED" ? "#f59e0b" : g.status === "REWORK_REQUESTED" ? "#ef4444" : "#a594ff" }}>
-                  {g.status}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, background: g.status === "APPROVED" ? "rgba(34,197,94,0.1)" : g.status === "SUBMITTED" ? "rgba(245,158,11,0.1)" : g.status === "REWORK_REQUESTED" ? "rgba(239,68,68,0.1)" : "rgba(124,106,255,0.1)", color: g.status === "APPROVED" ? "#22c55e" : g.status === "SUBMITTED" ? "#f59e0b" : g.status === "REWORK_REQUESTED" ? "#ef4444" : "#a594ff" }}>
+                    {g.status}
+                  </span>
+                  {g.status === "APPROVED" && (
+                    <button onClick={() => unlockGoal(g.id)} style={{ padding: "7px 14px", borderRadius: 8, background: "#1e1e2e", border: "1px solid rgba(255,255,255,0.12)", color: "#e8e8f0", cursor: "pointer", fontSize: 12 }}>
+                      🔓 Unlock
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -1,10 +1,15 @@
 import { authOptions } from "@/lib/auth";
+import { isGoalSettingOpen } from "@/lib/cycle";
 import { getPrisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 
 export async function POST() {
   const session = await getServerSession(authOptions);
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (process.env.ALLOW_OUT_OF_WINDOW === "false" && !isGoalSettingOpen()) {
+    return Response.json({ error: "Goal setting window is closed" }, { status: 403 });
+  }
 
   const prisma = await getPrisma();
   const goals = await prisma.goal.findMany({
@@ -22,6 +27,16 @@ export async function POST() {
     where: { ownerId: session.user.id, cycleYear: new Date().getFullYear(), status: "DRAFT" },
     data: { status: "SUBMITTED" },
   });
+
+  for (const goal of goals) {
+    await prisma.auditLog.create({
+      data: {
+        goalId: goal.id,
+        userId: session.user.id,
+        action: "GOAL_SUBMITTED",
+      },
+    });
+  }
 
   return Response.json({ success: true });
 }

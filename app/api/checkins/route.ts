@@ -1,4 +1,5 @@
 import { authOptions } from "@/lib/auth";
+import { isCheckinOpen } from "@/lib/cycle";
 import { getPrisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 
@@ -9,6 +10,10 @@ export async function POST(req: Request) {
   const prisma = await getPrisma();
   const body = await req.json();
 
+  if (process.env.ALLOW_OUT_OF_WINDOW === "false" && !isCheckinOpen(body.period)) {
+    return Response.json({ error: `Check-in window for ${body.period} is not currently open` }, { status: 403 });
+  }
+
   const goal = await prisma.goal.findUnique({ where: { id: body.goalId } });
   if (!goal) return Response.json({ error: "Goal not found" }, { status: 404 });
 
@@ -18,11 +23,18 @@ export async function POST(req: Request) {
     if (goal.uomType === "ZERO_BASED") score = body.actual === 0 ? 100 : 0;
     else if (goal.uomType === "MIN_NUMERIC") score = Math.min(100, (body.actual / goal.target) * 100);
     else if (goal.uomType === "MAX_NUMERIC") score = Math.min(100, (goal.target / body.actual) * 100);
+  } else if (goal.uomType === "TIMELINE" && body.actualDate && goal.targetDate) {
+    score = new Date(body.actualDate) <= new Date(goal.targetDate) ? 100 : 0;
   }
 
   const checkin = await prisma.checkIn.upsert({
     where: { goalId_period: { goalId: body.goalId, period: body.period } },
-    update: { actual: body.actual, status: body.status, score },
+    update: {
+      actual: body.actual,
+      status: body.status,
+      score,
+      ...(body.actualDate ? { actualDate: new Date(body.actualDate) } : {}),
+    },
     create: {
       goalId: body.goalId,
       employeeId: session.user.id,
@@ -30,6 +42,16 @@ export async function POST(req: Request) {
       actual: body.actual,
       status: body.status,
       score,
+      ...(body.actualDate ? { actualDate: new Date(body.actualDate) } : {}),
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      goalId: body.goalId,
+      userId: session.user.id,
+      action: "CHECKIN_UPDATED",
+      details: JSON.stringify({ period: body.period, actual: body.actual, status: body.status }),
     },
   });
 
